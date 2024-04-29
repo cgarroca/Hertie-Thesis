@@ -17,7 +17,11 @@ This masters thesis used Latent Dirichlet Allocation to extract topics from poli
 Mapping of process:
 
 1. PDF_Procesing_with_R
-   1.1-PDF_processing_and_data_gathering.Rmd
-   1.2-topic_modelling.Rmd
-   1.3-pages.Rmd
-3. data_cleaning_LDA_visualizations
+
+1.1-PDF_processing_and_data_gathering.Rmd
+
+1.2-topic_modelling.Rmd
+
+1.3-pages.Rmd
+
+2. data_cleaning_LDA_visualizations
