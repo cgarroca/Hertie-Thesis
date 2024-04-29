@@ -1,0 +1,121 @@
+---
+title: "paginas_separadas"
+author: "Garro"
+date: "2024-04-17"
+output: html_document
+---
+
+```{r}
+library(tidyverse) |> suppressMessages()
+library(tidytext)
+library(tm) |> suppressMessages()
+library(SnowballC) |> suppressMessages()
+library(tidytext) |> suppressMessages()
+library(discoverableresearch) |> suppressMessages()
+library(readxl)
+#library(discoverableresearch)
+library(scraEP)
+library(tm)
+library(stringr)
+
+stops_es <- c("largo","cada","sino","tambien","ser","ano","anos","dar", "measurable", "timebound","achievable","relevant","mediante","mas","cada","vez","n",
+              "puedan","busca","realizar","tal","deben","tres","cuatro","uno","dos","cinco","seis","siete","ocho","nueve","mil","solo","hace","asi","ad","re",
+              "do","das","ahora bien",
+              unaccent(stopwords(kind="es")))
+
+#function to preprocess text, but will be u
+preprocess_text <- function(text) {
+    text <- tolower(text)  # Convert to lowercase
+    text <- gsub("[[:punct:]]", "", text)  # Remove punctuation
+    text <- gsub("[[:digit:]]", "", text)  # Remove numbers
+    text <- gsub("[ \t\r\n]+", " ", text)  # Remove extra whitespaces
+    text <- trimws(text)  # Remove leading and trailing whitespaces
+    text <- unaccent(text)
+    text <- removeWords(text, stops_es)  # Remove stopwords
+    text <- wordStem(text, language = "spanish")  # Stemming
+}
+```
+
+
+## Read the data
+
+```{r}
+#read the data
+data <- readRDS("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/plans.rds")
+#new generacion cartago
+data$Text[293] = ""
+#canas - unidos podemos
+data$Text[329] = ""
+# curri siglo xxi
+data$Text[479] = ""
+#mora lib nac
+#data[517,]
+data$Text[517] = ""
+#moravia partido somos moravia
+data$Text[525] = ""
+#paste(unlist(data$Text[250]), collapse = " ")
+
+#tibas san jose nueva rep puso el plan de montes de oca...
+data$Text[554] = ""
+
+```
+
+
+Take only the relevant part of the texts: the proposals.
+```{r}
+posi <- read_xlsx("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/donde_comienzan.xlsx")
+data$Propuestas <- ""
+
+for(i in seq(1,566)){
+  if(!is.na(posi$begins[i])){
+    if(!is.na(posi$ends[i])){
+      data$Propuestas[i] = list(unlist(data$Text[i])[posi$begins[i]:posi$ends[i]])
+    } else{
+      data$Propuestas[i] = list(unlist(data$Text[i])[posi$begins[i]:length(unlist(data$Text[i]))])
+    }
+  }
+}
+  
+#posi[220:230,]  
+```
+
+Add column that states if they uploaded the plan, if it was readable or if it was not uploaded.
+
+```{r}
+#View(data)
+
+
+
+data <- data |> mutate(action = case_when(is.na(Location) ~ "No plan",
+                                          !is.na(Location) & Propuestas == '' ~ "Non readable",
+                                          Propuestas != '' ~ 'Readable text'))
+
+glimpse(data)
+
+
+#View(data)
+
+
+```
+
+
+Each page will have a row... this should make them different in nature.
+```{r}
+pages <- data |> select(-c(Location,Text)) |> unnest(Propuestas)
+pages <- pages[-63,] #random NA
+
+#View(pages)
+```
+
+
+```{r}
+#View(for_csv)
+write.csv(pages,"C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/pages.csv")
+```
+
+
+
+
+
+
+

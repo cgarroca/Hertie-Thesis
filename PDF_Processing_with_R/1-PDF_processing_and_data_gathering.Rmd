@@ -1,0 +1,335 @@
+---
+title: "Database_Cantones"
+author: "Garro"
+date: "2024-02-15"
+output: html_document
+---
+
+Reading the data from the google sheet:
+
+```{r}
+library(tidyverse)
+library(pdftools)
+library(tesseract)
+
+no_plan <- read.csv("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Hertie-Thesis/PDF_Processing/parties_with_no_plan.csv")
+
+head(no_plan)
+``` 
+Ahora a leer los textos de los documentos y sus nombres
+
+```{r}
+setwd("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024")
+#names of the files
+dirs <- list.dirs("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Propuestas de planes")
+#drop general files and only keep specifc ones
+dirs <- dirs[-c(1,2,19,28,40,51,58,72)]
+files_dirs <- c()
+
+for (i in dirs){
+  files_in_folder = list.files(i)
+  files = c(paste0(i,"/",files_in_folder))
+  files_dirs = c(files_dirs, files)
+}
+# Ich lese die dateien -> I read the files
+# Kommentar, entkommentar -> Comment, un comment
+# Programme laufen lassen -> Run a script (Program run let)
+
+#
+data <- data.frame(files_dirs)
+
+names(data) <- "Location"
+
+data <- cbind(data$Location,data.frame(str_split_fixed(data$Location,"\\/",13)[,11:13]))
+
+names(data) <- c("Location","Provincia","Municipalidad","Partido")
+
+data <- data %>% mutate(Partido = str_sub(Partido,1,(str_locate(Partido,"\\.")[,1]-1)))
+head(data)
+```
+
+
+```{r}
+
+#read PDF
+#mini test 
+
+#data_test <- data[sample(nrow(data), 12), ]
+
+#try(pdf_text(data$Location[53]))
+#c(5,41,286,334,)
+
+#for(i in 335:340){
+#  print(i)
+#  pdf_text(data$Location[i])
+#}
+
+numbers <-seq(1:340)
+numbers <- numbers[-c(5,41,286,334)]
+data$Text = NA
+
+data[c(5,41,286,334),]
+
+for(i in numbers){
+  text = list(pdf_text(data$Location[i]))
+  data$Text[i] = text
+}
+
+data$Location[c(5,41,286,334)]
+```
+
+
+```{r}
+plans <- no_plan %>% select(-c(plan_link,doble_check)) %>% 
+  mutate(Provincia = str_replace_all(toupper(Privincia)," ","_"),
+         Canton = str_replace_all(toupper(Canton)," ","_"),
+         Partido = str_replace_all(toupper(Partido)," ","_"))
+
+plans <- plans %>% mutate(Municipalidad = Canton, Location = NA, Text = NA) %>% 
+  select(-Canton)
+
+#names(plans);names(data[,c(4,2,3,1,5)])
+
+#join both datasets
+plans <- rbind(plans[,c(4,2,3,1,5)],data)
+
+
+#View(plans)
+```
+
+Add the candidates and the winners, with these variables
+Cédula	
+Nombre del Candidato	
+Puesto	
+Partido	
+Provincia	Canton	
+Ganador	
+Votos	
+Participacion	
+Abstencionismo
+Tipo de documento
+
+Documents in the following database that have a "Good" in the document column are those that are readable with R
+
+```{r}
+library(readxl)
+library(stringi)
+
+candidatos <- read_xlsx("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/alcaldes_para_R.xlsx")
+
+names(candidatos) <- c("Cedula","Candidato","Puesto","Partido","Provincia","Municipalidad","Ganador","Votos","Participacion","Abstencionismo","Tipo_Documento")
+
+cn <- candidatos %>% select(Provincia, Municipalidad, Partido, Candidato, Ganador, Votos, Participacion, Abstencionismo, Tipo_Documento) %>% 
+  mutate(Provincia = stri_trans_general(str_replace_all(toupper(Provincia)," ","_"), "Latin-ASCII"),
+         Municipalidad = stri_trans_general(str_replace_all(toupper(Municipalidad)," ","_"), "Latin-ASCII"),
+         Partido = stri_trans_general(paste0("PARTIDO_",str_replace_all(toupper(Partido)," ","_")), "Latin-ASCII")
+         )
+
+
+#stringi::stri_trans_general(x, "Latin-ASCII")
+
+plans <- plans %>% full_join(cn,by=c("Provincia","Municipalidad","Partido"))
+
+plans
+
+```
+
+OCR
+No sirvio ): no son datos buenos, mejor dejarlos ir.
+```{r}
+ns <- which(plans$Tipo_Documento == "OCR")
+#235, 252, 266, 281, 290, 298, 318, 353, 360, 372, 373, 388, 389, 441, 442, 454, 467, 469, 527, 529, 541, 555, 561
+
+plans[ns,5] <- NA
+plans[ns,5]
+
+
+#plans[ns,c(2,3,4)]
+#(plans$Location[252])
+#convert into 
+#pdf_convert(PDF_folder,output_folder,dpi = 600)
+#pdf_convert(plans$Location[235],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/235"
+#list.files("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/235")
+
+#tx <- c()
+#for(i in list.files("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/235")){
+#  texto = ocr(paste0("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/235/",i))
+#  tx <- c(tx,texto)
+#}
+#plans$Text[235] <- tx
+
+#tx <- c()
+#for(i in list.files("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/290")){
+#  texto = ocr(paste0("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/290/",i))
+#  tx <- c(tx,unlist(texto))
+  #print(texto)
+#}
+
+#tx
+
+#pdf_convert(plans$Location[252],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/252"
+
+
+#tx <- c()
+#for(i in list.files("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/252")){
+#  texto = ocr(paste0("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/252/",i))
+#  tx <- c(tx,texto)
+#}
+#plans$Text[252] <- tx
+
+#pdf_convert(plans$Location[266],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/266"
+
+
+
+#tx <- c()
+#for(i in list.files("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/")){
+#  texto = ocr(paste0("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/num/",i))
+#  tx <- c(tx,texto)
+#}
+#plans$Text[num] <- tx
+
+#pdf_convert(plans$Location[281],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/281"
+#tx <- c()
+#for(i in list.files("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/num")){
+#  texto = ocr(paste0("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/num/",i))
+#  tx <- c(tx,texto)
+#}
+
+#plans$Text[num] <- tx
+#pdf_convert(plans$Location[290],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/290"
+
+#pdf_convert(plans$Location[298],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/298"
+
+#pdf_convert(plans$Location[318],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/318"
+
+#pdf_convert(plans$Location[353],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/353"
+
+#pdf_convert(plans$Location[360],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/360"
+
+#pdf_convert(plans$Location[372],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/372"
+
+#pdf_convert(plans$Location[373],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/373"
+
+#pdf_convert(plans$Location[388],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/388"
+
+#pdf_convert(plans$Location[389],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/389"
+
+#pdf_convert(plans$Location[441],dpi = 600) 
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/441"
+
+#pdf_convert(plans$Location[442],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/442"
+
+#pdf_convert(plans$Location[454],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/454"
+
+#pdf_convert(plans$Location[467],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/467"
+
+#pdf_convert(plans$Location[469],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/469"
+
+#pdf_convert(plans$Location[527],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/527"
+
+#pdf_convert(plans$Location[529],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/529"
+
+#pdf_convert(plans$Location[541],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/541"
+
+#pdf_convert(plans$Location[555],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/555"
+
+#pdf_convert(plans$Location[561],dpi = 600)
+# "C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/561"
+
+
+#tx <- c()
+#for(i in list.files("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/290")){
+#  texto = ocr(paste0("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/290/",i))
+#  tx <- c(tx,unlist(texto))
+  #print(texto)
+#}
+
+
+
+
+#ns <- which(plans$Tipo_Documento == "OCR")
+#ns <-  c(281,290)
+#for (i in ns){
+#  tx <- c()
+#  for(j in list.files(paste0("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/",as.character(i)))){
+#    texto = ocr(paste0("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/",as.character(i),"/",as.character(j)))
+#    tx <- c(tx,unlist(texto))
+#  }
+#  plans$Text[i] <- list(tx)
+  #print(paste0(i,list(tx)))
+#}
+
+
+#ns <- which(plans$Tipo_Documento == "NO SE")
+# 227 263 508 556
+#plans[ns,c(2,3,4)]
+#pdf_convert(plans$Location[227],dpi = 600)
+#pdf_convert(plans$Location[263],dpi = 600)
+#pdf_convert(plans$Location[508],dpi = 600)
+#pdf_convert(plans$Location[556],dpi = 600)
+
+#for (i in ns){
+#  print(c(i,plans$Text[i]))}
+
+
+
+#for(i in ns){
+#  print(paste0(i, plans$Text[i]))
+#}
+
+```
+
+Los raros que se pueden copy paste
+
+```{r}
+
+ns <- which(plans$Tipo_Documento == "NO SE")
+for (i in ns){
+  for(j in list.files(paste0("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/",as.character(i)))){
+    texto = list(pdf_text(paste0("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/Planes_OCR/",as.character(i),"/",as.character(j))))
+  }
+  plans$Text[i] <- texto
+  #print(paste0(i,list(tx)))
+}
+
+```
+
+
+
+```{r}
+saveRDS(plans, file = "plans.rds")
+
+data <- readRDS("C:/Users/carme/Dropbox/MIO/DOCS/Hertie/Thesis/Elecciones_Municipales_2024/plans.rds")
+
+#View(plans)
+```
+
+
+
+
+
+
+
+
+
