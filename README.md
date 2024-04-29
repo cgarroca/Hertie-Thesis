@@ -1,6 +1,6 @@
 ### Analyzing Political Promises: A Topic Modeling Approach to the Manifestos of Costa Rica's 2024 Local Government Elections as a Tool for Tranparency
 
-Master Of Data Science for Public Policy
+Master Of Data Science for Public Policy \n
 Hertie School
 Berlin, Germany
 Carmen Garro
